@@ -200,27 +200,16 @@ const StringArtCanvas = forwardRef<StringArtCanvasHandle, StringArtCanvasProps>(
                 const result = await asyncGeneratorRef.current.next()
                 
                 if (result.done) {
-                  // Final result received - ensure all lines are drawn
+                  // Final result received - all lines already drawn via streaming
                   const finalResult = result.value
                   if (finalResult && finalResult.nails) {
                     nailsRef.current = finalResult.nails
                   }
-                  
-                  // Draw any remaining lines from final result
-                  if (finalResult && finalResult.lines) {
-                    for (const segment of finalResult.lines) {
-                      if (!linesRef.current.find(l => l.from === segment.from && l.to === segment.to)) {
-                        linesRef.current.push(segment)
-                        drawLine(ctx2, nails, segment)
-                        lineCount++
-                      }
-                    }
-                  }
-                  
+
                   runningRef.current = false
                   onRunningChange(false)
                   onComplete()
-                  onProgress(Math.max(lineCount, settings.lineCount), settings.lineCount)
+                  onProgress(lineCount, settings.lineCount)
                   return
                 }
                 
@@ -237,13 +226,38 @@ const StringArtCanvas = forwardRef<StringArtCanvasHandle, StringArtCanvasProps>(
               animFrameRef.current = requestAnimationFrame(animateAsync)
             } catch (error) {
               console.error("Error in Go backend generation:", error)
-              runningRef.current = false
-              onRunningChange(false)
               // Fallback to local generator
               setUseGoBackend(false)
               const localGen = stringArtGenerator(imageData, nails, settings)
               generatorRef.current = localGen
-              animate()
+              let fallbackLineCount = linesRef.current.length
+
+              const fallbackBatchSize = settings.lineCount > 30000 ? 150 : settings.lineCount > 10000 ? 100 : 50
+
+              const fallbackAnimate = () => {
+                if (!runningRef.current || !generatorRef.current) return
+                const ctx3 = canvas.getContext("2d")
+                if (!ctx3) return
+                const startT = performance.now()
+                for (let i = 0; i < fallbackBatchSize; i++) {
+                  if (performance.now() - startT > 16) break
+                  const result = generatorRef.current.next()
+                  if (result.done) {
+                    runningRef.current = false
+                    onRunningChange(false)
+                    onComplete()
+                    onProgress(settings.lineCount, settings.lineCount)
+                    return
+                  }
+                  const seg = result.value
+                  linesRef.current.push(seg)
+                  drawLine(ctx3, nails, seg)
+                  fallbackLineCount++
+                }
+                onProgress(fallbackLineCount, settings.lineCount)
+                animFrameRef.current = requestAnimationFrame(fallbackAnimate)
+              }
+              animFrameRef.current = requestAnimationFrame(fallbackAnimate)
             }
           }
 

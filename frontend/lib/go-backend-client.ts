@@ -104,16 +104,8 @@ export async function* generateStringArtWithGoBackend(
               // Progress update - yield the line
               yield parsed.line
             } else if (parsed.lines && parsed.nails) {
-              // Final response - store it but continue processing
+              // Final response - just store it, lines already yielded individually
               finalResponse = parsed
-              // Also yield all remaining lines from final response
-              if (parsed.lines && parsed.lines.length > 0) {
-                // Find which lines we haven't yielded yet
-                // This ensures all lines are drawn
-                for (const line of parsed.lines) {
-                  yield line
-                }
-              }
             }
           } catch (e) {
             console.error("Failed to parse SSE data:", e, data)

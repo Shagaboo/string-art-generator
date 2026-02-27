@@ -11,16 +11,15 @@ import (
 
 // healthHandler обрабатывает запросы на проверку здоровья сервера
 func healthHandler(w http.ResponseWriter, r *http.Request) {
-	// Добавляем CORS заголовки
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	
+
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	
+
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
@@ -32,15 +31,12 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	
+
 	startTime := time.Now()
-	log.Printf("🚀 [GENERATE] Начало генерации - размер: %dx%d, гвоздей: %d, линий: %d", 
+	log.Printf("[GENERATE] Start - size: %dx%d, nails: %d, lines: %d",
 		req.Width, req.Height, req.NailCount, req.LineCount)
-	log.Printf("📊 [GENERATE] Параметры: brightness=%.1f, contrast=%.1f, invert=%v, opacity=%.1f", 
-		req.Brightness, req.Contrast, req.InvertBrightness, req.LineOpacity)
 
 	// Обработка изображения
-	log.Printf("🖼️  [IMAGE] Обработка изображения...")
 	processor := NewImageProcessor(req.Brightness, req.Contrast)
 	grayscale := processor.ProcessToGrayscale(
 		req.ImageData,
@@ -48,21 +44,19 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 		req.Height,
 		req.InvertBrightness,
 	)
-	log.Printf("✅ [IMAGE] Изображение обработано, пикселей: %d", len(grayscale))
 
 	// Генерация гвоздей
 	nails := req.Nails
 	if len(nails) == 0 {
 		nails = GenerateNails(req.Width, req.Height, req.NailCount, req.Shape)
 	} else {
-		// Предвычисляем целочисленные координаты если гвозди пришли из запроса
 		for i := range nails {
-			nails[i].Xi = int(nails[i].X + 0.5) // Быстрый round
+			nails[i].Xi = int(nails[i].X + 0.5)
 			nails[i].Yi = int(nails[i].Y + 0.5)
 		}
 	}
 
-	// GetLineWeight ТОЧНО как в оригинале: LimitPixel(value / 100 * 255)
+	// lineWeight точно как в оригинале: LimitPixel(value / 100 * 255)
 	lineWeight := int(math.Round(req.LineOpacity / 100.0 * 255.0))
 	if lineWeight < 0 {
 		lineWeight = 0
@@ -70,12 +64,6 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 	if lineWeight > 255 {
 		lineWeight = 255
 	}
-
-	// Создаем кэш линий
-	log.Printf("🔧 [CACHE] Создание кэша линий для %d гвоздей...", len(nails))
-	cacheStart := time.Now()
-	lineCache := NewLineCache(nails, req.Width)
-	log.Printf("✅ [CACHE] Кэш создан за %v", time.Since(cacheStart))
 
 	// Setup SSE
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -89,14 +77,13 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Создаем генератор
-	generator := NewGenerator(grayscale, lineCache, nails, req.Width, req.Height)
+	// Создаем генератор (без кэша линий - используем inline Bresenham)
+	generator := NewGenerator(grayscale, nails, req.Width, req.Height)
 
 	// Генерируем линии с потоковой отправкой прогресса
 	lines := make([]LineSegment, 0, req.LineCount)
-	currentNail := 0
 
-	// Определяем batch size для flush (максимально для скорости)
+	// Batch size для flush
 	batchSize := 200
 	if req.LineCount > 10000 {
 		batchSize = 500
@@ -105,25 +92,21 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 		batchSize = 1000
 	}
 
-	// Генерируем по одной линии для потоковой отправки
-	log.Printf("🎨 [GENERATE] Начало генерации %d линий...", req.LineCount)
-	lastLogTime := time.Now()
-	
+	log.Printf("[GENERATE] Starting generation of %d lines (workers: %d)...", req.LineCount, generator.workers)
+
 	for lineIdx := 0; lineIdx < req.LineCount; lineIdx++ {
-		segment := generator.generateNextLine(&currentNail, lineWeight)
+		segment := generator.GenerateNextLine(lineWeight)
 		lines = append(lines, segment)
-		
-		// Логируем прогресс каждые 10000 линий или каждые 20 секунд (реже для скорости)
-		now := time.Now()
-		if lineIdx%10000 == 0 || now.Sub(lastLogTime) >= 20*time.Second {
-			elapsed := now.Sub(startTime)
-			linesPerSec := float64(lineIdx+1) / elapsed.Seconds()
-			remaining := req.LineCount - (lineIdx + 1)
+
+		// Логируем прогресс
+		if lineIdx%5000 == 0 && lineIdx > 0 {
+			elapsed := time.Since(startTime)
+			linesPerSec := float64(lineIdx) / elapsed.Seconds()
+			remaining := req.LineCount - lineIdx
 			eta := time.Duration(float64(remaining)/linesPerSec) * time.Second
-			log.Printf("📈 [PROGRESS] Линия %d/%d (%.1f%%) | Скорость: %.1f лин/сек | Осталось: ~%v", 
-				lineIdx+1, req.LineCount, float64(lineIdx+1)/float64(req.LineCount)*100, 
+			log.Printf("[PROGRESS] Line %d/%d (%.1f%%) | Speed: %.0f lines/sec | ETA: %v",
+				lineIdx, req.LineCount, float64(lineIdx)/float64(req.LineCount)*100,
 				linesPerSec, eta.Round(time.Second))
-			lastLogTime = now
 		}
 
 		// Отправляем прогресс
@@ -143,9 +126,9 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Финальный ответ
 	totalTime := time.Since(startTime)
-	log.Printf("✅ [GENERATE] Генерация завершена за %v | Всего линий: %d | Средняя скорость: %.1f лин/сек", 
+	log.Printf("[GENERATE] Done in %v | Lines: %d | Speed: %.0f lines/sec",
 		totalTime, len(lines), float64(len(lines))/totalTime.Seconds())
-	
+
 	response := GenerateResponse{
 		Lines: lines,
 		Nails: nails,
@@ -154,110 +137,3 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "data: %s\n\n", data)
 	flusher.Flush()
 }
-
-// generateNextLine генерирует следующую линию используя ERROR-BASED алгоритм
-func (g *Generator) generateNextLine(currentNail *int, lineWeight int) LineSegment {
-	nailCount := len(g.nails)
-	bestNail := *currentNail
-	var bestLine []int
-	maxError := -1
-
-	// КРИТИЧЕСКАЯ ОПТИМИЗАЦИЯ: Ограничиваем кандидатов для скорости
-	maxCandidates := 300
-	if nailCount < maxCandidates {
-		maxCandidates = nailCount
-	}
-
-	// Умный выбор кандидатов: ближайшие + равномерно распределенные
-	candidates := make([]int, 0, maxCandidates)
-	minDistance := nailCount / 20
-	if minDistance < 5 {
-		minDistance = 5
-	}
-
-	// Берем ближайшие гвозди
-	nearestCount := maxCandidates / 3
-	for offset := minDistance; offset < nailCount-minDistance && len(candidates) < nearestCount; offset++ {
-		nailIdx := (*currentNail + offset) % nailCount
-		if nailIdx != *currentNail {
-			candidates = append(candidates, nailIdx)
-		}
-	}
-
-	// Добавляем равномерно распределенные
-	step := nailCount / (maxCandidates - len(candidates))
-	if step < 1 {
-		step = 1
-	}
-	for i := 0; i < nailCount && len(candidates) < maxCandidates; i += step {
-		if i != *currentNail {
-			found := false
-			for _, c := range candidates {
-				if c == i {
-					found = true
-					break
-				}
-			}
-			if !found {
-				candidates = append(candidates, i)
-			}
-		}
-	}
-
-	// Быстрая прямая проверка (без worker pool overhead для скорости)
-	for _, nailIdx := range candidates {
-		line := g.lineCache.Get(*currentNail, nailIdx)
-		if line == nil {
-			continue
-		}
-
-		// Быстрое вычисление яркости (оригинальный алгоритм)
-		lineLightness := 0
-		count := 0
-		for _, idx := range line {
-			if idx >= 0 && idx < g.width*g.height {
-				lineLightness += g.current[idx]
-				count++
-			}
-		}
-
-		if count > 0 {
-			avgLightness := lineLightness / count
-			lineError := 255 - avgLightness
-			if lineError > maxError {
-				maxError = lineError
-				bestNail = nailIdx
-				bestLine = line
-			}
-		}
-	}
-	// Fallback если не нашли
-	if maxError < 0 || bestLine == nil {
-		bestNail = (*currentNail + 1) % nailCount
-		bestLine = g.lineCache.Get(*currentNail, bestNail)
-	}
-
-	// Обновляем current и error после рисования линии
-	for _, idx := range bestLine {
-		if idx >= 0 && idx < g.width*g.height {
-			// Обновляем current
-			v := g.current[idx] + lineWeight
-			if v > 255 {
-				v = 255
-			}
-			g.current[idx] = v
-
-			// Уменьшаем error на lineWeight (как в оригинальном Go коде)
-			e := g.error[idx] - lineWeight
-			if e < 0 {
-				e = 0
-			}
-			g.error[idx] = e
-		}
-	}
-
-	fromNail := *currentNail
-	*currentNail = bestNail
-	return LineSegment{From: fromNail, To: bestNail}
-}
-

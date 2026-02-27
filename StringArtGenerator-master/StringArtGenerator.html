@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Генератор string art изображений</title>
+    <link rel="stylesheet" type="text/css" href="css/controls.css">
+    <link rel="stylesheet" type="text/css" href="css/styles.css">
+</head>
+<body>
+    <h1>Генератор изображений в стиле String art</h1>
+    <div class="generator" id="generator-box">
+        <div class="drag-drop" id="drag-drop-box" style="display: none">
+            <div class="drag-drop-table">
+                <div>Отпустите файл для загрузки изображения</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="control-block centered no-top-padding">
+                <input type="submit" id="select-btn" value="Выбрать изображение"><br>
+            </div>
+
+            <div id="controls-box">
+                <div class="control-block no-top-padding">
+                    <label><b>Форма</b>
+                        <select id="form-type-box" disabled>
+                            <option value="circle" selected>круг</option>
+                            <option value="rect">квадрат</option>
+                            <option value="album">альбом</option>
+                            <option value="portrait">портрет</option>
+                            <option value="image">по изображению</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="control-block no-top-padding">
+                    <input type="checkbox" id="invert-box" disabled> <label for="invert-box">Инвертировать яркость</label>
+                </div>
+
+                <div class="control-block no-margin no-top-padding">
+                    <label><b>Контрастность</b><br>
+                        <input type="range" id="contrast-box" value="0" min="-100" max="100" step="5" disabled>
+                    </label>
+                    <div class="range-label" id="contrast-value">0</div>
+
+                    <label><b>Яркость</b><br>
+                        <input type="range" id="brightness-box" value="0" min="-100" max="100" step="5" disabled>
+                    </label>
+                    <div class="range-label" id="brightness-value">0</div>
+                </div>
+
+                <div class="control-block no-top-padding">
+                    <label><b>Расположение гвоздей</b>
+                        <select id="nails-mode-box" disabled>
+                            <option value="border" selected>на границе</option>
+                            <option value="grid">в виде сетки</option>
+                            <option value="random">случайно</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="control-block no-top-padding">
+                    <label><b>Количество гвоздей</b><br>
+                        <input type="number" id="nails-count-box" value="250" min="50" max="1000" disabled>
+                    </label>
+                </div>
+
+                <div class="control-block">
+                    <label><b>Количество линий</b><br>
+                        <input type="number" id="lines-count-box" value="100" min="100" max="10000" disabled>
+                    </label>
+                </div>
+
+                <div class="control-block">
+                    <label><b>Непрозрачность линии</b><br>
+                        <input type="range" id="lines-weight-box" value="10" min="1" max="100" disabled>
+                    </label>
+                    <div class="range-label" id="lines-weight-value">10%</div>
+                </div>
+
+                <div class="control-block no-margin">
+                    <input type="color" id="lines-color-box" value="#000000" disabled> <label for="lines-color-box"><b>Цвет линии</b></label>
+                </div>
+
+                <div class="control-block">
+                    <input type="color" id="background-color-box" value="#ffffff" disabled> <label for="background-color-box"><b>Цвет фона</b></label>
+                </div>
+
+                <div class="control-block centered">
+                    <input type="submit" id="generate-btn" value="Запустить" disabled>
+                    <input type="submit" id="reset-btn" value="Сбросить" disabled>
+                    <div id="status-box"></div>
+                </div>
+            </div>
+
+            <div class="control-block">
+                <div id="info-box"></div>
+            </div>
+
+            <div id="save-box" style="display: none">
+                <hr>
+                <div class="control-block no-top-padding">
+                    <label><b>Формат сохранения:</b>
+                        <select id="save-type-box">
+                            <option value="png">png</option>
+                            <option value="svg">svg</option>
+                            <option value="stringart">stringart</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="control-block no-top-padding centered">
+                    <input type="submit" id="save-btn" value="Сохранить">
+                </div>
+            </div>
+        </div>
+
+        <div class="view">
+            <canvas id="canvas"></canvas>
+        </div>
+    </div>
+
+    <script src="js/constants.js"></script>
+    <script src="js/string_art_generator.js"></script>
+    <script src="js/init.js"></script>
+    <script src="js/events.js"></script>
+    <script src="js/draw.js"></script>
+    <script>
+        let canvas = document.getElementById('canvas')
+        let generator = new StringArtGenerator(canvas)
+    </script>
+</body>
+</html>

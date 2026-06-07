@@ -3,7 +3,7 @@
 import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle, useState } from "react"
 import type { Nail, StringArtSettings, LineSegment } from "@/lib/string-art-engine"
 import { generateNails, stringArtGenerator, hexToRgb } from "@/lib/string-art-engine"
-import { generateStringArtWithGoBackend, checkGoBackendHealth } from "@/lib/go-backend-client"
+import { generateStringArtWithGoBackend, checkGoBackendHealth, exportToCNC } from "@/lib/go-backend-client"
 
 export interface StringArtCanvasHandle {
   start: (image: HTMLImageElement) => void
@@ -11,6 +11,7 @@ export interface StringArtCanvasHandle {
   reset: () => void
   downloadPNG: () => void
   downloadSVG: () => void
+  downloadCNC: (format: "gcode" | "json" | "csv") => Promise<void>
   getLines: () => LineSegment[]
   getNails: () => Nail[]
 }
@@ -354,12 +355,34 @@ const StringArtCanvas = forwardRef<StringArtCanvasHandle, StringArtCanvasProps>(
     const getLines = useCallback(() => linesRef.current, [])
     const getNails = useCallback(() => nailsRef.current, [])
 
+    const downloadCNC = useCallback(async (format: "gcode" | "json" | "csv") => {
+      const nails = nailsRef.current
+      const lines = linesRef.current
+      if (nails.length === 0 || lines.length === 0) return
+
+      const { width, height } = canvasSizeRef.current
+      
+      try {
+        const blob = await exportToCNC(nails, lines, width, height, format)
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        link.download = `string-art.${format === "gcode" ? "gcode" : format}`
+        link.href = url
+        link.click()
+        URL.revokeObjectURL(url)
+      } catch (error) {
+        console.error("Failed to export to CNC:", error)
+        alert("Ошибка экспорта. Убедитесь, что backend запущен.")
+      }
+    }, [])
+
     useImperativeHandle(ref, () => ({
       start,
       stop,
       reset,
       downloadPNG,
       downloadSVG,
+      downloadCNC,
       getLines,
       getNails,
     }))

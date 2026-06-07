@@ -80,6 +80,10 @@ export default function Home() {
     canvasHandleRef.current?.downloadSVG()
   }, [])
 
+  const handleDownloadCNC = useCallback((format: "gcode" | "json" | "csv") => {
+    canvasHandleRef.current?.downloadCNC(format)
+  }, [])
+
   const controlsPanelContent = (
     <ControlsPanel
       settings={settings}
@@ -90,6 +94,7 @@ export default function Home() {
       onReset={handleReset}
       onDownloadPNG={handleDownloadPNG}
       onDownloadSVG={handleDownloadSVG}
+      onDownloadCNC={handleDownloadCNC}
       isRunning={isRunning}
       hasImage={hasImage}
       progress={progress}

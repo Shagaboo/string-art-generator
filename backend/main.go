@@ -32,6 +32,7 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/api/generate", generateHandler).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/health", healthHandler).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/export", exportHandler).Methods("POST", "OPTIONS")
 	
 	// Применяем CORS middleware ко всем роутам
 	handler := corsMiddleware(r)

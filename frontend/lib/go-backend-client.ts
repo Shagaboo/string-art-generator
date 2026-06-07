@@ -33,6 +33,7 @@ export async function* generateStringArtWithGoBackend(
     shape: settings.shape,
     brightness: settings.brightness,
     contrast: settings.contrast,
+    gamma: settings.gamma || 0.7,
     invertBrightness: settings.invertBrightness,
   }
 
@@ -131,5 +132,34 @@ export async function checkGoBackendHealth(): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+// Экспорт для ЧПУ станка
+export async function exportToCNC(
+  nails: Nail[],
+  lines: LineSegment[],
+  width: number,
+  height: number,
+  format: "gcode" | "json" | "csv" = "json"
+): Promise<Blob> {
+  const response = await fetch(`${GO_BACKEND_URL}/api/export`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      nails,
+      lines,
+      width,
+      height,
+      format,
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Export failed: ${response.status} ${response.statusText}`)
+  }
+
+  return await response.blob()
 }
 

@@ -1,8 +1,9 @@
 export interface StringArtSettings {
-  shape: "circle" | "rectangle" | "random"
+  shape: "circle" | "rectangle" | "grid" | "random"
   invertBrightness: boolean
   contrast: number
   brightness: number
+  gamma: number // Гамма-коррекция для усиления темных областей (0.5-2.0)
   nailCount: number
   lineCount: number
   lineOpacity: number
@@ -21,10 +22,11 @@ export interface LineSegment {
 }
 
 export const DEFAULT_SETTINGS: StringArtSettings = {
-  shape: "circle",
+  shape: "grid",
   invertBrightness: false,
   contrast: 0,
   brightness: 0,
+  gamma: 0.7, // По умолчанию 0.7 для усиления темных областей
   nailCount: 2500,
   lineCount: 30000,
   lineOpacity: 10,
@@ -81,6 +83,54 @@ export function generateNails(
         }
       }
       nails.push({ x, y })
+    }
+  } else if (shape === "grid") {
+    // Полу-сетка: периметр + равномерное распределение внутри
+    const margin = 4
+    const perimeterCount = Math.floor(count * 0.4)
+    const innerCount = count - perimeterCount
+    
+    // Гвозди по периметру
+    const perimeter = 2 * (width - 2 * margin) + 2 * (height - 2 * margin)
+    const spacing = perimeter / perimeterCount
+    let pos = 0
+    
+    for (let i = 0; i < perimeterCount; i++) {
+      let x: number, y: number
+      if (pos < width - 2 * margin) {
+        x = margin + pos
+        y = margin
+      } else if (pos < width - 2 * margin + height - 2 * margin) {
+        x = width - margin
+        y = margin + (pos - (width - 2 * margin))
+      } else if (pos < 2 * (width - 2 * margin) + height - 2 * margin) {
+        x = width - margin - (pos - (width - 2 * margin + height - 2 * margin))
+        y = height - margin
+      } else {
+        x = margin
+        y = height - margin - (pos - (2 * (width - 2 * margin) + height - 2 * margin))
+      }
+      nails.push({ x, y })
+      pos += spacing
+    }
+    
+    // Гвозди внутри (сетка с небольшим случайным смещением)
+    const cols = Math.floor(Math.sqrt(innerCount * width / height))
+    const rows = Math.ceil(innerCount / cols)
+    const cellW = (width - 2 * margin) / cols
+    const cellH = (height - 2 * margin) / rows
+    
+    for (let i = 0; i < innerCount; i++) {
+      const col = i % cols
+      const row = Math.floor(i / cols)
+      const centerX = margin + col * cellW + cellW / 2
+      const centerY = margin + row * cellH + cellH / 2
+      const offsetX = (Math.random() - 0.5) * cellW * 0.3
+      const offsetY = (Math.random() - 0.5) * cellH * 0.3
+      nails.push({
+        x: Math.max(margin, Math.min(width - margin, centerX + offsetX)),
+        y: Math.max(margin, Math.min(height - margin, centerY + offsetY)),
+      })
     }
   } else {
     // random

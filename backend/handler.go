@@ -1,11 +1,14 @@
 package main
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -37,7 +40,12 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 		req.Width, req.Height, req.NailCount, req.LineCount)
 
 	// Обработка изображения
-	processor := NewImageProcessor(req.Brightness, req.Contrast)
+	// Используем гамма = 0.7 для усиления темных областей (по умолчанию)
+	gamma := req.Gamma
+	if gamma <= 0 {
+		gamma = 0.7
+	}
+	processor := NewImageProcessor(req.Brightness, req.Contrast, gamma)
 	grayscale := processor.ProcessToGrayscale(
 		req.ImageData,
 		req.Width,
@@ -136,4 +144,208 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 	data, _ := json.Marshal(response)
 	fmt.Fprintf(w, "data: %s\n\n", data)
 	flusher.Flush()
+}
+
+// exportHandler обрабатывает запросы на экспорт в формат ЧПУ
+func exportHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	var req ExportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Nails) == 0 || len(req.Lines) == 0 {
+		http.Error(w, "No nails or lines to export", http.StatusBadRequest)
+		return
+	}
+
+	format := strings.ToLower(req.Format)
+	if format == "" {
+		format = "json"
+	}
+
+	switch format {
+	case "gcode":
+		exportGCode(w, req)
+	case "csv":
+		exportCSV(w, req)
+	case "json":
+		exportJSON(w, req)
+	default:
+		http.Error(w, "Unsupported format. Use: gcode, csv, or json", http.StatusBadRequest)
+	}
+}
+
+// exportGCode экспортирует в формат G-code для ЧПУ станка
+func exportGCode(w http.ResponseWriter, req ExportRequest) {
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Disposition", "attachment; filename=string-art.gcode")
+
+	// Заголовок G-code
+	fmt.Fprintf(w, "; String Art G-code Export\n")
+	fmt.Fprintf(w, "; Generated: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(w, "; Nails: %d, Lines: %d\n", len(req.Nails), len(req.Lines))
+	fmt.Fprintf(w, "; Dimensions: %dx%d\n\n", req.Width, req.Height)
+
+	// Инициализация
+	fmt.Fprintf(w, "G21 ; Set units to millimeters\n")
+	fmt.Fprintf(w, "G90 ; Absolute positioning\n")
+	fmt.Fprintf(w, "G28 ; Home all axes\n")
+	fmt.Fprintf(w, "G0 Z5 ; Raise tool\n\n")
+
+	// Перемещаемся к первому гвоздю
+	if len(req.Nails) > 0 {
+		firstNail := req.Nails[req.Lines[0].From]
+		fmt.Fprintf(w, "G0 X%.2f Y%.2f ; Move to first nail\n", firstNail.X, firstNail.Y)
+		fmt.Fprintf(w, "G0 Z0 ; Lower tool\n\n")
+	}
+
+	// Рисуем линии
+	for i, line := range req.Lines {
+		fromNail := req.Nails[line.From]
+		toNail := req.Nails[line.To]
+
+		// Перемещаемся к началу линии (если нужно)
+		if i == 0 || req.Lines[i-1].To != line.From {
+			fmt.Fprintf(w, "G0 Z5 ; Raise tool\n")
+			fmt.Fprintf(w, "G0 X%.2f Y%.2f ; Move to nail %d\n", fromNail.X, fromNail.Y, line.From)
+			fmt.Fprintf(w, "G0 Z0 ; Lower tool\n")
+		}
+
+		// Рисуем линию
+		fmt.Fprintf(w, "G1 X%.2f Y%.2f ; Draw line to nail %d\n", toNail.X, toNail.Y, line.To)
+	}
+
+	// Завершение
+	fmt.Fprintf(w, "\nG0 Z5 ; Raise tool\n")
+	fmt.Fprintf(w, "G28 ; Home all axes\n")
+	fmt.Fprintf(w, "M30 ; End of program\n")
+}
+
+// exportCSV экспортирует в CSV формат (координаты гвоздей и последовательность линий)
+func exportCSV(w http.ResponseWriter, req ExportRequest) {
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", "attachment; filename=string-art.csv")
+
+	writer := csv.NewWriter(w)
+	defer writer.Flush()
+
+	// Заголовок
+	writer.Write([]string{"Type", "Index", "X", "Y", "From", "To"})
+
+	// Экспортируем гвозди
+	for i, nail := range req.Nails {
+		writer.Write([]string{
+			"NAIL",
+			strconv.Itoa(i),
+			fmt.Sprintf("%.2f", nail.X),
+			fmt.Sprintf("%.2f", nail.Y),
+			"",
+			"",
+		})
+	}
+
+	// Экспортируем линии
+	for i, line := range req.Lines {
+		writer.Write([]string{
+			"LINE",
+			strconv.Itoa(i),
+			"",
+			"",
+			strconv.Itoa(line.From),
+			strconv.Itoa(line.To),
+		})
+	}
+}
+
+// exportJSON экспортирует в JSON формат с координатами
+func exportJSON(w http.ResponseWriter, req ExportRequest) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", "attachment; filename=string-art.json")
+
+	type ExportData struct {
+		Metadata struct {
+			GeneratedAt string `json:"generatedAt"`
+			NailCount   int    `json:"nailCount"`
+			LineCount   int    `json:"lineCount"`
+			Width       int    `json:"width"`
+			Height      int    `json:"height"`
+		} `json:"metadata"`
+		Nails []struct {
+			Index int     `json:"index"`
+			X     float64 `json:"x"`
+			Y     float64 `json:"y"`
+		} `json:"nails"`
+		Lines []struct {
+			Index int `json:"index"`
+			From  struct {
+				Index int     `json:"index"`
+				X     float64 `json:"x"`
+				Y     float64 `json:"y"`
+			} `json:"from"`
+			To struct {
+				Index int     `json:"index"`
+				X     float64 `json:"x"`
+				Y     float64 `json:"y"`
+			} `json:"to"`
+		} `json:"lines"`
+	}
+
+	var export ExportData
+	export.Metadata.GeneratedAt = time.Now().Format("2006-01-02 15:04:05")
+	export.Metadata.NailCount = len(req.Nails)
+	export.Metadata.LineCount = len(req.Lines)
+	export.Metadata.Width = req.Width
+	export.Metadata.Height = req.Height
+
+	// Экспортируем гвозди
+	export.Nails = make([]struct {
+		Index int     `json:"index"`
+		X     float64 `json:"x"`
+		Y     float64 `json:"y"`
+	}, len(req.Nails))
+	for i, nail := range req.Nails {
+		export.Nails[i] = struct {
+			Index int     `json:"index"`
+			X     float64 `json:"x"`
+			Y     float64 `json:"y"`
+		}{Index: i, X: nail.X, Y: nail.Y}
+	}
+
+	// Экспортируем линии с координатами
+	export.Lines = make([]struct {
+		Index int `json:"index"`
+		From  struct {
+			Index int     `json:"index"`
+			X     float64 `json:"x"`
+			Y     float64 `json:"y"`
+		} `json:"from"`
+		To struct {
+			Index int     `json:"index"`
+			X     float64 `json:"x"`
+			Y     float64 `json:"y"`
+		} `json:"to"`
+	}, len(req.Lines))
+	for i, line := range req.Lines {
+		fromNail := req.Nails[line.From]
+		toNail := req.Nails[line.To]
+		export.Lines[i].Index = i
+		export.Lines[i].From.Index = line.From
+		export.Lines[i].From.X = fromNail.X
+		export.Lines[i].From.Y = fromNail.Y
+		export.Lines[i].To.Index = line.To
+		export.Lines[i].To.X = toNail.X
+		export.Lines[i].To.Y = toNail.Y
+	}
+
+	json.NewEncoder(w).Encode(export)
 }

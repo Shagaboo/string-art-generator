@@ -1,0 +1,17 @@
+[Unit]
+Description=String Art Generator Backend
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/www/string-art-generator/backend
+ExecStart=/var/www/string-art-generator/backend/string-art-backend
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+

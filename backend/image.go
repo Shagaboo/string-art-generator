@@ -7,6 +7,7 @@ import "math"
 type ImageProcessor struct {
 	brightnessTable []int
 	contrastTable   []int
+	gammaTable      []int // Таблица гамма-коррекции для усиления темных областей
 }
 
 // limitPixel ограничивает значение пикселя 0-255 и округляет (как LimitPixel в оригинале)
@@ -22,10 +23,12 @@ func limitPixel(value float64) int {
 
 // NewImageProcessor создает новый процессор изображений с заданными параметрами
 // ТОЧНО как в оригинале: brightnessTable[i] = LimitPixel(i * brightness)
-func NewImageProcessor(brightness, contrast float64) *ImageProcessor {
+// Добавлена гамма-коррекция для усиления темных областей
+func NewImageProcessor(brightness, contrast, gamma float64) *ImageProcessor {
 	ip := &ImageProcessor{
 		brightnessTable: make([]int, 256),
 		contrastTable:   make([]int, 256),
+		gammaTable:      make([]int, 256),
 	}
 
 	// Создаем таблицу brightness ТОЧНО как в оригинале
@@ -38,6 +41,19 @@ func NewImageProcessor(brightness, contrast float64) *ImageProcessor {
 	contrastFactor := 1.0 + contrast/100.0
 	for i := 0; i < 256; i++ {
 		ip.contrastTable[i] = limitPixel((float64(i) - 128.0) * contrastFactor + 128.0)
+	}
+
+	// Создаем таблицу гамма-коррекции для усиления темных областей
+	// gamma < 1.0 делает темные области темнее (усиливает контраст)
+	// gamma > 1.0 делает темные области светлее
+	// По умолчанию используем gamma = 0.7 для усиления теней
+	if gamma <= 0 {
+		gamma = 0.7 // Значение по умолчанию для усиления темных областей
+	}
+	for i := 0; i < 256; i++ {
+		normalized := float64(i) / 255.0
+		corrected := math.Pow(normalized, 1.0/gamma)
+		ip.gammaTable[i] = limitPixel(corrected * 255.0)
 	}
 
 	return ip
@@ -70,6 +86,8 @@ func (ip *ImageProcessor) ProcessToGrayscale(imageData []uint8, width, height in
 		// Применяем brightness и contrast через таблицы (ТОЧНО как в оригинале)
 		lightness = ip.brightnessTable[lightness]
 		lightness = ip.contrastTable[lightness]
+		// Применяем гамма-коррекцию для усиления темных областей
+		lightness = ip.gammaTable[lightness]
 
 		grayscale[i/4] = lightness
 	}

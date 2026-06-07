@@ -33,6 +33,7 @@ interface ControlsPanelProps {
   onReset: () => void
   onDownloadPNG: () => void
   onDownloadSVG: () => void
+  onDownloadCNC?: (format: "gcode" | "json" | "csv") => void
   isRunning: boolean
   hasImage: boolean
   progress: { current: number; total: number }
@@ -48,6 +49,7 @@ export default function ControlsPanel({
   onReset,
   onDownloadPNG,
   onDownloadSVG,
+  onDownloadCNC,
   isRunning,
   hasImage,
   progress,
@@ -154,6 +156,7 @@ export default function ControlsPanel({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="grid">Полу-сетка</SelectItem>
             <SelectItem value="circle">Круг</SelectItem>
             <SelectItem value="rectangle">Прямоугольник</SelectItem>
             <SelectItem value="random">Случайные</SelectItem>
@@ -219,6 +222,26 @@ export default function ControlsPanel({
             step={1}
             disabled={isRunning}
           />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-foreground/80">Гамма (темные области)</span>
+            <span className="text-xs font-mono text-primary">
+              {settings.gamma?.toFixed(2) || "0.70"}
+            </span>
+          </div>
+          <Slider
+            value={[settings.gamma || 0.7]}
+            onValueChange={([val]) => updateSetting("gamma", val)}
+            min={0.5}
+            max={2.0}
+            step={0.1}
+            disabled={isRunning}
+          />
+          <p className="text-xs text-muted-foreground">
+            Меньше = темнее тени (рекомендуется 0.6-0.8)
+          </p>
         </div>
       </div>
 
@@ -407,6 +430,38 @@ export default function ControlsPanel({
             SVG
           </Button>
         </div>
+
+        {onDownloadCNC && (
+          <div className="flex gap-2">
+            <Button
+              onClick={() => onDownloadCNC("gcode")}
+              variant="outline"
+              className="flex-1 border-border/50 text-foreground/70"
+              disabled={progress.current === 0}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              G-code
+            </Button>
+            <Button
+              onClick={() => onDownloadCNC("json")}
+              variant="outline"
+              className="flex-1 border-border/50 text-foreground/70"
+              disabled={progress.current === 0}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              JSON
+            </Button>
+            <Button
+              onClick={() => onDownloadCNC("csv")}
+              variant="outline"
+              className="flex-1 border-border/50 text-foreground/70"
+              disabled={progress.current === 0}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              CSV
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -26,6 +26,7 @@ type GenerateRequest struct {
 	Shape            string  `json:"shape"`
 	Brightness       float64 `json:"brightness"`
 	Contrast         float64 `json:"contrast"`
+	Gamma            float64 `json:"gamma"` // Гамма-коррекция для усиления темных областей (0.5-2.0, по умолчанию 0.7)
 	InvertBrightness bool    `json:"invertBrightness"`
 }
 
@@ -41,4 +42,14 @@ type ProgressUpdate struct {
 	Index int         `json:"index"`
 	Total int         `json:"total"`
 }
+
+// ExportRequest содержит данные для экспорта в формат ЧПУ
+type ExportRequest struct {
+	Nails []Nail        `json:"nails"`
+	Lines []LineSegment `json:"lines"`
+	Width int           `json:"width"`
+	Height int          `json:"height"`
+	Format string       `json:"format"` // "gcode", "json", "csv"
+}
+
 

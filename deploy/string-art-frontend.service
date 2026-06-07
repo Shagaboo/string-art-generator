@@ -1,0 +1,19 @@
+[Unit]
+Description=String Art Generator Frontend
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/www/string-art-generator/frontend
+ExecStart=/bin/bash /var/www/string-art-generator/deploy/start-frontend.sh
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=NODE_ENV=production
+Environment=PORT=3000
+
+[Install]
+WantedBy=multi-user.target
+

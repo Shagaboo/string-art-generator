@@ -6,14 +6,13 @@ import (
 )
 
 // Generator генерирует string art из изображения
-// Алгоритм точно соответствует оригиналу (programforyou.ru):
 // 1. Для текущего гвоздя проверяем ВСЕ остальные гвозди
 // 2. Для каждого кандидата вычисляем среднюю яркость пикселей вдоль линии
 // 3. Выбираем линию с минимальной средней яркостью (самую тёмную)
 // 4. Прибавляем lineWeight к пикселям выбранной линии (делаем ярче)
 // 5. Переходим к выбранному гвоздю и повторяем
 type Generator struct {
-	grayscale   []int  // Рабочая копия grayscale (обновляется после каждой линии)
+	grayscale   []int  
 	nails       []Nail
 	width       int
 	height      int
@@ -49,7 +48,6 @@ type bestResult struct {
 }
 
 // GenerateNextLine генерирует следующую линию string art
-// Точно повторяет алгоритм GetNextNail из оригинала:
 // - Перебирает ВСЕ гвозди (кроме текущего)
 // - Вычисляет среднюю яркость (GetLineLightness)
 // - Выбирает линию с минимальной яркостью
@@ -59,7 +57,7 @@ func (g *Generator) GenerateNextLine(lineWeight int) LineSegment {
 	fromX := g.nails[fromNail].Xi
 	fromY := g.nails[fromNail].Yi
 
-	// Параллельная оценка ВСЕХ гвоздей (как в оригинале - проверяем все)
+	// Параллельная оценка ВСЕХ гвоздей 
 	chunkSize := (nailCount + g.workers - 1) / g.workers
 	results := make([]bestResult, g.workers)
 

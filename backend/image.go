@@ -3,14 +3,14 @@ package main
 import "math"
 
 // ImageProcessor обрабатывает изображения: конвертация в grayscale, применение brightness/contrast
-// ТОЧНО как в оригинале: используем целые числа и правильный порядок операций
+// используем целые числа и правильный порядок операций
 type ImageProcessor struct {
 	brightnessTable []int
 	contrastTable   []int
 	gammaTable      []int // Таблица гамма-коррекции для усиления темных областей
 }
 
-// limitPixel ограничивает значение пикселя 0-255 и округляет (как LimitPixel в оригинале)
+// limitPixel ограничивает значение пикселя 0-255 и округляет 
 func limitPixel(value float64) int {
 	if value < 0 {
 		return 0
@@ -22,7 +22,6 @@ func limitPixel(value float64) int {
 }
 
 // NewImageProcessor создает новый процессор изображений с заданными параметрами
-// ТОЧНО как в оригинале: brightnessTable[i] = LimitPixel(i * brightness)
 // Добавлена гамма-коррекция для усиления темных областей
 func NewImageProcessor(brightness, contrast, gamma float64) *ImageProcessor {
 	ip := &ImageProcessor{
@@ -60,7 +59,7 @@ func NewImageProcessor(brightness, contrast, gamma float64) *ImageProcessor {
 }
 
 // ProcessToGrayscale конвертирует RGBA изображение в grayscale с применением настроек
-// ТОЧНО как в оригинале: GetLightness -> invert -> brightnessTable -> contrastTable
+//  GetLightness -> invert -> brightnessTable -> contrastTable
 func (ip *ImageProcessor) ProcessToGrayscale(imageData []uint8, width, height int, invert bool) []int {
 	grayscale := make([]int, width*height)
 
@@ -78,12 +77,12 @@ func (ip *ImageProcessor) ProcessToGrayscale(imageData []uint8, width, height in
 			lightness = 255
 		}
 
-		// Применяем инверсию ДО brightness/contrast (как в оригинале)
+		// Применяем инверсию ДО brightness/contrast 
 		if invert {
 			lightness = 255 - lightness
 		}
 
-		// Применяем brightness и contrast через таблицы (ТОЧНО как в оригинале)
+		// Применяем brightness и contrast через таблицы 
 		lightness = ip.brightnessTable[lightness]
 		lightness = ip.contrastTable[lightness]
 		// Применяем гамма-коррекцию для усиления темных областей

@@ -64,7 +64,7 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// lineWeight точно как в оригинале: LimitPixel(value / 100 * 255)
+	// lineWeight  LimitPixel(value / 100 * 255)
 	lineWeight := int(math.Round(req.LineOpacity / 100.0 * 255.0))
 	if lineWeight < 0 {
 		lineWeight = 0
